@@ -58,5 +58,5 @@ if version_greater "$image_version" "$installed_version"; then
         rm -f /tmp/list_before /tmp/list_after
     fi
 fi
-
+run_as 'php /var/www/html/occ config:system:set theme --value="hoffmann"'
 exec "$@"
