@@ -3,7 +3,7 @@ version: '3'
 services:
   db:
     image: mariadb
-    # image: mysql
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
     restart: always
     volumes:
       - db:/var/lib/mysql

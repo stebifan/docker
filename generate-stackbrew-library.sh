@@ -1,6 +1,11 @@
 #!/bin/bash
 set -Eeuo pipefail
 
+declare -A release_channel=(
+	[production]='13.0.2'
+	[stable]='13.0.2'
+)
+
 self="$(basename "$BASH_SOURCE")"
 cd "$(dirname "$(readlink -f "$BASH_SOURCE")")"
 
@@ -16,14 +21,30 @@ dockerfileCommit() {
 	(
 		cd "$dir";
 		fileCommit Dockerfile \
-			$(git show HEAD:./Dockerfile | awk '
+			$(awk '
 				toupper($1) == "COPY" {
 					for (i = 2; i < NF; i++)
 							print $i;
 				}
-			')
+			' Dockerfile)
 	)
 }
+
+getArches() {
+	local repo="$1"; shift
+	local officialImagesUrl='https://github.com/docker-library/official-images/raw/master/library/'
+
+	eval "declare -g -A parentRepoToArches=( $(
+		find -maxdepth 3 -name 'Dockerfile' -exec awk '
+				toupper($1) == "FROM" && $2 !~ /^('"$repo"'|scratch|microsoft\/[^:]+)(:|$)/ {
+					print "'"$officialImagesUrl"'" $2
+				}
+			' '{}' + \
+			| sort -u \
+			| xargs bashbrew cat --format '[{{ .RepoName }}:{{ .TagName }}]="{{ join " " .TagEntry.Architectures }}"'
+	) )"
+}
+getArches 'nextcloud'
 
 # Header.
 cat <<-EOH
@@ -41,8 +62,14 @@ join() {
 }
 
 latest=$( curl -fsSL 'https://download.nextcloud.com/server/releases/' |tac|tac| \
-	grep -oE 'nextcloud-[[:digit:]]+(.[[:digit:]]+)+' | \
-	grep -oE '[[:digit:]]+(.[[:digit:]]+)+' | \
+	grep -oE 'nextcloud-[[:digit:]]+(\.[[:digit:]]+){2}' | \
+	grep -oE '[[:digit:]]+(\.[[:digit:]]+){2}' | \
+	sort -uV | \
+	tail -1 )
+
+latest_rc=$( curl -fsSL 'https://download.nextcloud.com/server/prereleases/' |tac|tac| \
+	grep -oE 'nextcloud-[[:digit:]]+(\.[[:digit:]]+){2}RC[[:digit:]]+' | \
+	grep -oE '[[:digit:]]+(\.[[:digit:]]+){2}RC[[:digit:]]+' | \
 	sort -uV | \
 	tail -1 )
 
@@ -56,12 +83,29 @@ for version in "${versions[@]}"; do
 	done) )
 	for variant in "${variants[@]}"; do
 		commit="$(dockerfileCommit "$version/$variant")"
-		fullversion="$(git show "$commit":"$version/$variant/Dockerfile" | awk '$1 == "ENV" && $2 == "NEXTCLOUD_VERSION" { print $3; exit }')"
+		fullversion_with_extension="$( awk '$1 == "ENV" && $2 == "NEXTCLOUD_VERSION" { print $3; exit }' "$version/$variant/Dockerfile" )"
+		fullversion="$( echo "$fullversion_with_extension" | grep -oE '[[:digit:]]+(\.[[:digit:]]+){2}')"
 
-		versionAliases=( "$fullversion" "${fullversion%.*}" "${fullversion%.*.*}" )
-		if [ "$fullversion" = "$latest" ]; then
+		versionAliases=( )
+		versionPostfix=""
+		if [ "$fullversion_with_extension" != "$fullversion" ]; then
+			versionAliases=( "$fullversion_with_extension" )
+			versionPostfix="-rc"
+		fi
+
+		versionAliases+=( "$fullversion$versionPostfix" "${fullversion%.*}$versionPostfix" "${fullversion%.*.*}$versionPostfix" )
+		if [ "$fullversion_with_extension" = "$latest" ]; then
 			versionAliases+=( "latest" )
 		fi
+		if [ "$fullversion_with_extension" = "$latest_rc" ]; then
+			versionAliases+=( "rc" )
+		fi
+
+		for channel in "${!release_channel[@]}"; do
+			if [ "$fullversion_with_extension" = "${release_channel[$channel]}" ]; then
+				versionAliases+=( "$channel" )
+			fi
+		done
 
 		variantAliases=( "${versionAliases[@]/%/-$variant}" )
 		variantAliases=( "${variantAliases[@]//latest-}" )
@@ -70,10 +114,13 @@ for version in "${versions[@]}"; do
 			variantAliases+=( "${versionAliases[@]}" )
 		fi
 
+		variantParent="$(awk 'toupper($1) == "FROM" { print $2 }' "$version/$variant/Dockerfile")"
+		variantArches="${parentRepoToArches[$variantParent]}"
+
 		cat <<-EOE
 
 			Tags: $(join ', ' "${variantAliases[@]}")
-			Architectures: amd64, arm32v5, arm32v7, arm64v8, i386, ppc64le, s390x
+			Architectures: $(join ', ' $variantArches)
 			GitCommit: $commit
 			Directory: $version/$variant
 		EOE

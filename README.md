@@ -10,11 +10,11 @@ A safe home for all your data. Access & share your files, calendars, contacts, m
 # How to use this image
 This image is designed to be used in a micro-service environment. There are two versions of the image you can choose from.
 
-The `apache` tag contains a full Nextcloud installation including an apache web server. It is designed to be easy to use and get's you running pretty fast. This is also the default for the `latest` tag and version tags that are not further specified.
+The `apache` tag contains a full Nextcloud installation including an apache web server. It is designed to be easy to use and gets you running pretty fast. This is also the default for the `latest` tag and version tags that are not further specified.
 
 The second option is a `fpm` container. It is based on the [php-fpm](https://hub.docker.com/_/php/) image and runs a fastCGI-Process that serves your Nextcloud page. To use this image it must be combined with any webserver that can proxy the http requests to the FastCGI-port of the container.
 
-[![Try in PWD](https://github.com/play-with-docker/stacks/raw/cff22438cb4195ace27f9b15784bbb497047afa7/assets/images/button.png)](http://play-with-docker.com?stack=https://raw.githubusercontent.com/nextcloud/docker/dba66a2d18b1020f6de6e22defd1b5e6df87c894/stack.yml)
+[![Try in PWD](https://github.com/play-with-docker/stacks/raw/cff22438cb4195ace27f9b15784bbb497047afa7/assets/images/button.png)](http://play-with-docker.com?stack=https://raw.githubusercontent.com/nextcloud/docker/8db861d67f257a3e9ac1790ea06d4e2a7a193a6c/stack.yml)
 
 ## Using the apache image
 The apache image contains a webserver and exposes port 80. To start the container type:
@@ -48,16 +48,18 @@ To make your data persistent to upgrading and get access for backups is using na
 Nextcloud:
 - `/var/www/html/` folder where all nextcloud data lives
 ```console
-$ docker run -d nextcloud \
--v nextcloud:/var/www/html
+$ docker run -d \
+-v nextcloud:/var/www/html \
+nextcloud
 ```
 
 Database:
 - `/var/lib/mysql` MySQL / MariaDB Data
-- `/var/lib/postresql/data` PostegreSQL Data
+- `/var/lib/postgresql/data` PostgreSQL Data
 ```console
-$ docker run -d mariadb \
--v db:/var/lib/mysql
+$ docker run -d \
+-v db:/var/lib/mysql \
+mariadb
 ```
 
 If you want to get fine grained access to your individual files, you can mount additional volumes for data, config, your theme and custom apps. 
@@ -73,12 +75,13 @@ Overview of the folders that can be mounted as volumes:
 
 If you want to use named volumes for all of these it would look like this
 ```console
-$ docker run -d nextcloud \
+$ docker run -d \
 -v nextcloud:/var/www/html \
 -v apps:/var/www/html/custom_apps \
 -v config:/var/www/html/config \
 -v data:/var/www/html/data \
--v theme:/var/www/html/themes/<YOUR_CUSTOM_THEME>
+-v theme:/var/www/html/themes/<YOUR_CUSTOM_THEME> \
+nextcloud
 ```
 
 ## Using the Nextcloud command-line interface
@@ -318,16 +321,16 @@ docker-compose exec db rm /dmp
 4. Copy your data (nextcloud_app_1 is the name of your Nextcloud container):
 ```console
 docker cp ./data/ nextcloud_app_1:/var/www/html/data
-docker-compose exec app chown www-data:www-data /var/www/html/data
+docker-compose exec app chown -R www-data:www-data /var/www/html/data
 docker cp ./theming/ nextcloud_app_1:/var/www/html/theming
-docker-compose exec app chown www-data:www-data /var/www/html/theming
+docker-compose exec app chown -R www-data:www-data /var/www/html/theming
 docker cp ./config/config.php nextcloud_app_1:/var/www/html/config
-docker-compose exec app chown www-data:www-data /var/www/html/config
+docker-compose exec app chown -R www-data:www-data /var/www/html/config
 ```
 5. Copy only the custom apps you use (or simply redownload them from the web interface):
 ```console 
 docker cp ./apps/ nextcloud_data:/var/www/html/custom_apps
-docker-compose exec app chown www-data:www-data /var/www/html/custom_apps
+docker-compose exec app chown -R www-data:www-data /var/www/html/custom_apps
 ```
 
 # Questions / Issues

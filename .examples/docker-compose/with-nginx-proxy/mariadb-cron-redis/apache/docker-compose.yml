@@ -3,7 +3,7 @@ version: '3'
 services:
   db:
     image: mariadb
-    # image: mysql
+    command: --transaction-isolation=READ-COMMITTED --binlog-format=ROW
     restart: always
     volumes:
       - db:/var/lib/mysql
@@ -40,20 +40,7 @@ services:
     restart: always
     volumes:
       - nextcloud:/var/www/html
-    user: www-data
-    entrypoint: |
-      bash -c 'bash -s <<EOF
-        trap "break;exit" SIGHUP SIGINT SIGTERM
-
-        while [ ! -f /var/www/html/config/config.php ]; do
-          sleep 1
-        done
-
-        while true; do
-          php -f /var/www/html/cron.php
-          sleep 15m
-        done
-      EOF'
+    entrypoint: /cron.sh
     depends_on:
       - db
       - redis
@@ -68,7 +55,6 @@ services:
       com.github.jrcs.letsencrypt_nginx_proxy_companion.nginx_proxy: "true"
     volumes:
       - certs:/etc/nginx/certs:ro
-      - conf.d:/etc/nginx/conf.d
       - vhost.d:/etc/nginx/vhost.d
       - html:/usr/share/nginx/html
       - /var/run/docker.sock:/tmp/docker.sock:ro
@@ -80,7 +66,6 @@ services:
     restart: always
     volumes:
       - certs:/etc/nginx/certs
-      - conf.d:/etc/nginx/conf.d
       - vhost.d:/etc/nginx/vhost.d
       - html:/usr/share/nginx/html
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -93,7 +78,6 @@ volumes:
   db:
   nextcloud:
   certs:
-  conf.d:
   vhost.d:
   html:
 
